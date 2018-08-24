@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <color name="color_white_ffffff">#ffffff</color>
+    <color name="color_black_333333">#333333</color>
+    <color name="color_blue_07aef5">#07aef5</color>
+    <color name="color_gray_999999">#999999</color>
+
+    <color name="color_gray_e5e5e5">#e5e5e5</color>
+    <color name="color_gray_f5f5f5">#f5f5f5</color>
+    <color name="color_gray_9fa1a9">#9fa1a9</color>
+    <color name="color_gray_666666">#666666</color>
+    <color name="color_black_000000">#000000</color>
+    <color name="color_gray_f1f3f4">#f1f3f4</color>
+    <!--半透明-->
+    <color name="color_black_semitransparent">#e0000000</color>
+
+    <color name="color_red_fa73a2">#fa73a2</color>
+    <color name="color_red_fe91a5">#f191a5</color>
+    <color name="color_red_fe728c">#fe728c</color>
+    <color name="color_red_FF6347">#FF6347</color>
+
+
+    <color name="color_blue_7bc6fb">#7bc6fb</color>
+    <color name="color_blue_4ab1f9">#4ab1f9</color>
+
+    <color name="color_black_2e2f33">#2e2f33</color>
+    <color name="color_yellow_f29030">#f29030</color>
+
+    <color name="color_black_2a2a2a">#2a2a2a</color>
+
+    <color name="color_white_eaeaea">#eaeaea</color>
+    <color name="color_gray_b0b0b0">#b0b0b0</color>
+
+    <color name="color_green_76EE00">#76EE00</color>
+
+</resources>

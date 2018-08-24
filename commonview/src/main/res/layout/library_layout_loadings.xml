@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/shape_background_white_circle">
+
+    <LinearLayout
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <ProgressBar
+            android:layout_margin="@dimen/size_18"
+            android:id="@+id/library_dialog_loading_pb"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+
+        <TextView
+            android:id="@+id/library_dialog_tv_loading"
+            android:textColor="@color/color_black_333333"
+            android:text="Loading..."
+            android:layout_toRightOf="@id/library_dialog_loading_pb"
+            android:textSize="@dimen/text_size_16sp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/library_dailog_tv_cancel"
+        android:padding="@dimen/size_16"
+        android:layout_gravity="right"
+        android:text="Cancel"
+        android:textColor="@color/color_blue_07aef5"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content" />
+
+</LinearLayout>

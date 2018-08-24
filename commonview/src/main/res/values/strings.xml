@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">MyLibrary</string>
+
+
+    <string name="string_history_tag_white_degree">白皙度:&#160;&#160;BXD</string>
+    <string name="string_history_tag_moisture_value">水分值:&#160;&#160;%</string>
+
+</resources>
