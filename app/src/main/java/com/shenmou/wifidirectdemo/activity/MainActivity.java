@@ -186,7 +186,9 @@ public class MainActivity extends BaseActivity {
                 msgAdapter.setData(msgBeans);
             }
         });
-        if(recyclerViewMsg != null)recyclerViewMsg.smoothScrollToPosition(msgAdapter.getItemCount() - 1);
+        if(recyclerViewMsg != null && msgAdapter != null) {
+            recyclerViewMsg.smoothScrollToPosition(msgAdapter.getItemCount() - 1);
+        }
     }
 
 
