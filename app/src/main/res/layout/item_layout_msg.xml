@@ -21,7 +21,6 @@
         android:layout_marginLeft="@dimen/size_10"
         android:textSize="@dimen/text_size_10sp"
         android:id="@+id/item_msg_msg"
-        android:textColor="@color/color_white_ffffff"
         android:layout_marginStart="@dimen/size_15"
         android:paddingBottom="@dimen/size_5"
         android:paddingTop="@dimen/size_5"

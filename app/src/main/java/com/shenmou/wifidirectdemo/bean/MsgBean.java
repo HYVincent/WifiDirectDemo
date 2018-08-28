@@ -11,8 +11,17 @@ package com.shenmou.wifidirectdemo.bean;
 public class MsgBean {
 
     private String msg;
-
+    //0 一般消息  1 错误消息  2 警告消息
+    private int msgLevel;
     private long time;
+
+    public int getMsgLevel() {
+        return msgLevel;
+    }
+
+    public void setMsgLevel(int msgLevel) {
+        this.msgLevel = msgLevel;
+    }
 
     public String getMsg() {
         return msg;

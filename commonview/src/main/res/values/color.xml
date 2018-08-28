@@ -26,6 +26,7 @@
 
     <color name="color_black_2e2f33">#2e2f33</color>
     <color name="color_yellow_f29030">#f29030</color>
+    <color name="color_yellow_FFB90F">#FFB90F</color>
 
     <color name="color_black_2a2a2a">#2a2a2a</color>
 
@@ -33,5 +34,7 @@
     <color name="color_gray_b0b0b0">#b0b0b0</color>
 
     <color name="color_green_76EE00">#76EE00</color>
+
+    <color name="color_red_FF0000">#FF0000</color>
 
 </resources>

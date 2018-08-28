@@ -15,7 +15,6 @@ import com.common.view.R;
 import com.common.view.adapter.MultipleSelectAdapter;
 import com.common.view.adapter.OnItemClickListener;
 import com.common.view.entity.SelectEntity;
-import com.common.view.util.MyToast;
 
 import java.util.ArrayList;
 import java.util.List;

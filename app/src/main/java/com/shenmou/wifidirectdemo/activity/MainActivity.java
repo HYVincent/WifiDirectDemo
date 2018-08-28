@@ -6,6 +6,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.ActivityInfo;
+import android.graphics.Bitmap;
 import android.net.NetworkInfo;
 import android.net.wifi.WpsInfo;
 import android.net.wifi.p2p.WifiP2pConfig;
@@ -18,16 +19,15 @@ import android.os.Build;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.RequiresApi;
-import android.support.annotation.WorkerThread;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.text.TextUtils;
 import android.util.ArraySet;
 import android.util.Log;
-import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.Toast;
 
 import com.alibaba.fastjson.JSON;
@@ -38,13 +38,16 @@ import com.shenmou.wifidirectdemo.adapter.WifiDrectAdapter;
 import com.shenmou.wifidirectdemo.base.BaseActivity;
 import com.shenmou.wifidirectdemo.bean.DataBean;
 import com.shenmou.wifidirectdemo.bean.MsgBean;
-import com.shenmou.wifidirectdemo.utils.DataUtil;
 import com.shenmou.wifidirectdemo.utils.GifSizeFilter;
 import com.shenmou.wifidirectdemo.utils.Glide4Engine;
+import com.shenmou.wifidirectdemo.utils.ImageUtil;
 import com.zhihu.matisse.Matisse;
 import com.zhihu.matisse.MimeType;
 import com.zhihu.matisse.filter.Filter;
 import com.zhihu.matisse.internal.entity.CaptureStrategy;
+
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -80,7 +83,7 @@ public class MainActivity extends BaseActivity {
 
     private Context mContext;
 
-    private RecyclerView recyclerView;
+//    private RecyclerView recyclerView = null;
     private WifiDrectAdapter adapter;
 
     private RecyclerView recyclerViewMsg;
@@ -90,11 +93,12 @@ public class MainActivity extends BaseActivity {
 //    private boolean isGroup = false;
     //正在扫描 true 未扫描 false
     private boolean isScan = false;
-    private Button btnScan, btnService, btnCloseService, btnSelectImg;
     private EditText etMsg;
     private String imgPath;
     //服务器的ip地址，作为客户端时使用
     private String ipString;
+    private Button btnService;
+    private ImageView imageView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -109,53 +113,28 @@ public class MainActivity extends BaseActivity {
     }
 
     private void initView() {
-        btnScan = findViewById(R.id.btn_start_scan_device);
-        btnScan.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                if (isScan) {
-                    showMsg("正在扫描设备..");
-                    return;
-                }
-                startSearchDevice();
+        imageView = findViewById(R.id.imageview);
+        Button btnScan = findViewById(R.id.btn_start_scan_device);
+        btnScan.setOnClickListener(view -> {
+            if (isScan) {
+                showMsg("正在扫描设备..");
+                return;
             }
+            startSearchDevice();
         });
         btnService = findViewById(R.id.btn_start_service);
-        btnService.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                createGroup();
-            }
-        });
-        btnCloseService = findViewById(R.id.btn_close_service);
-        btnCloseService.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                closeGroup();
-            }
-        });
-        btnSelectImg = findViewById(R.id.btn_select_img);
-        btnSelectImg.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                MainActivityPermissionsDispatcher.getImgWithCheck(MainActivity.this);
-            }
-        });
+        btnService.setOnClickListener(view -> createGroup());
+       Button btnCloseService = findViewById(R.id.btn_close_service);
+        btnCloseService.setOnClickListener(view -> closeGroup());
+       Button btnSelectImg = findViewById(R.id.btn_select_img);
+        btnSelectImg.setOnClickListener(view -> MainActivityPermissionsDispatcher.getImgWithCheck(MainActivity.this));
         etMsg = findViewById(R.id.et_msg);
-        findViewById(R.id.to_send_msg).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                String msg = etMsg.getText().toString();
-                DataBean dataBean = new DataBean();
-                dataBean.setDataType(1);
-                dataBean.setData(msg);
-                ThreadPoolManager.getInstance(true).execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        connectServiceSocket(dataBean, ipString, SERVICE_PORT);
-                    }
-                });
-            }
+        findViewById(R.id.to_send_msg).setOnClickListener(view -> {
+            String msg = etMsg.getText().toString();
+            DataBean dataBean = new DataBean();
+            dataBean.setDataType(1);
+            dataBean.setData(msg);
+            ThreadPoolManager.getInstance(true).execute(() -> connectServiceSocket(dataBean, ipString, SERVICE_PORT));
         });
     }
 
@@ -172,46 +151,61 @@ public class MainActivity extends BaseActivity {
 
     /**
      * 刷新消息列表
-     *
-     * @param msg
+     * @param msgLevel 消息等级 //0 一般消息  1 错误消息  2 警告消息
+     * @param msg 消息
      */
-    private void refreshMsgList(String msg) {
+    private void refreshMsgList(int msgLevel,String msg) {
         MsgBean msgBean = new MsgBean();
         msgBean.setTime(System.currentTimeMillis());
         msgBean.setMsg(msg);
+        msgBean.setMsgLevel(msgLevel);
         msgBeans.add(msgBean);
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                msgAdapter.setData(msgBeans);
-            }
-        });
+        runOnUiThread(() -> msgAdapter.setData(msgBeans));
         if(recyclerViewMsg != null && msgAdapter != null) {
             recyclerViewMsg.smoothScrollToPosition(msgAdapter.getItemCount() - 1);
         }
     }
 
+    /**
+     * 刷新消息列表
+     * @param msg 消息
+     */
+    private void refreshMsgList(String msg) {
+        MsgBean msgBean = new MsgBean();
+        msgBean.setTime(System.currentTimeMillis());
+        msgBean.setMsg(msg);
+        msgBean.setMsgLevel(0);
+        if(msgBeans.size()>100){
+            msgBeans.remove(0);
+        }
+        msgBeans.add(msgBean);
+        runOnUiThread(() -> msgAdapter.setData(msgBeans));
+        try {
+            if(recyclerViewMsg != null && msgAdapter != null) {
+                recyclerViewMsg.smoothScrollToPosition(msgAdapter.getItemCount() - 1);
+            }
+        }catch (Exception e){
+            e.printStackTrace();
+        }
+    }
 
     private void initRecycleView() {
-        recyclerView = findViewById(R.id.recycleView);
+        RecyclerView recyclerView = findViewById(R.id.recycleView);
         LinearLayoutManager linearLayoutManager = new LinearLayoutManager(MainActivity.this);
         linearLayoutManager.setOrientation(LinearLayoutManager.VERTICAL);
         recyclerView.setLayoutManager(linearLayoutManager);
         adapter = new WifiDrectAdapter(MainActivity.this);
-        refreshDevice(0);
+        refreshDevice();
         recyclerView.setAdapter(adapter);
-        adapter.setOnItemClickListener(new WifiDrectAdapter.WifiDrectDeviceOnClickListener() {
-            @Override
-            public void onItemClick(View view, int position) {
-                WifiP2pDevice wifiP2pDevice = list.get(position);
-                if (groupDevice != null) {
-                    refreshMsgList("当前设备为service，不可主动连接client..");
+        adapter.setOnItemClickListener((view, position) -> {
+            WifiP2pDevice wifiP2pDevice = list.get(position);
+            if (groupDevice != null) {
+                refreshMsgList(1,"当前设备为service，不可主动连接client..");
+            } else {
+                if (wifiP2pDevice.status == WifiP2pDevice.CONNECTED) {
+                    disconnect(wifiP2pDevice);
                 } else {
-                    if (wifiP2pDevice.status == WifiP2pDevice.CONNECTED) {
-                        disconnect(wifiP2pDevice);
-                    } else {
-                        connectWifiP2pDevice(wifiP2pDevice);
-                    }
+                    connectWifiP2pDevice(wifiP2pDevice);
                 }
             }
         });
@@ -250,15 +244,10 @@ public class MainActivity extends BaseActivity {
             @Override
             public void onFailure(int i) {
                 showMsg("搜索设备失败!");
-                refreshMsgList("搜索设备失败!");
+                refreshMsgList(1,"搜索设备失败!");
             }
         });
-        wifiP2pManager.requestPeers(channel, new WifiP2pManager.PeerListListener() {
-            @Override
-            public void onPeersAvailable(WifiP2pDeviceList wifiP2pDeviceList) {
-                Log.d(TAG, "onPeersAvailable: ........");
-            }
-        });
+        wifiP2pManager.requestPeers(channel, wifiP2pDeviceList -> Log.d(TAG, "onPeersAvailable: ........"));
     }
 
 
@@ -266,7 +255,7 @@ public class MainActivity extends BaseActivity {
      * 停止搜索设备
      */
     private void stopSearchDevice() {
-        refreshMsgList("停止搜索设备!");
+        refreshMsgList(1,"停止搜索设备!");
         wifiP2pManager.stopPeerDiscovery(channel, null);
     }
 
@@ -294,39 +283,21 @@ public class MainActivity extends BaseActivity {
                 @Override
                 public void onFailure(int reason) {
                     dismissionDialog();
-                    refreshMsgList("设备" + wifiP2pDevice.deviceName + "连接失败!");
+                    refreshMsgList(1,"设备" + wifiP2pDevice.deviceName + "连接失败!");
                     showMsg("设备" + wifiP2pDevice.deviceName + "连接失败!");
                 }
             });
-        } else if (wifiP2pDevice.status == wifiP2pDevice.UNAVAILABLE) {
+        } else if (wifiP2pDevice.status == WifiP2pDevice.UNAVAILABLE) {
             dismissionDialog();
-            refreshMsgList("设备" + wifiP2pDevice.deviceName + "无效!");
+            refreshMsgList(1,"设备" + wifiP2pDevice.deviceName + "无效!");
             showMsg("connectWifiP2pDevice: 当前设备无效..");
         } else {
             dismissionDialog();
-            refreshMsgList("设备" + wifiP2pDevice.deviceName + "不可连接,状态-->" + wifiP2pDevice.status);
+            refreshMsgList(1,"设备" + wifiP2pDevice.deviceName + "不可连接,状态-->" + wifiP2pDevice.status);
             showMsg("connectWifiP2pDevice: 当前设备不可连接,状态-->" + wifiP2pDevice.status);
         }
-        refreshDevice(1);
-    }
-
-    /**
-     * 正在连接中，还没有连接成功的时候，可以取消连接..
-     *
-     * @param selectDevice
-     */
-    private void cancelConnect(WifiP2pDevice selectDevice) {
-        if (selectDevice.status == WifiP2pDevice.INVITED) {
-            wifiP2pManager.cancelConnect(channel, new WifiP2pManager.ActionListener() {
-                public void onSuccess() {
-//                    Utils.d(" cancel connect success");
-                }
-
-                public void onFailure(int reason) {
-//                    Utils.d(" cancel connect fail ");
-                }
-            });
-        }
+        refreshDevice();
+        refreshMsgList("status : 连接设备之后刷新列表状态..");
     }
 
     /**
@@ -334,13 +305,10 @@ public class MainActivity extends BaseActivity {
      */
     private void getCurrentConnectDeviceList() {
         if (wifiP2pManager != null && channel != null) {
-            wifiP2pManager.requestGroupInfo(channel, new WifiP2pManager.GroupInfoListener() {
-                @Override
-                public void onGroupInfoAvailable(WifiP2pGroup wifiP2pGroup) {
-                    //当前服务器设备
-                    groupDevice = wifiP2pGroup.getOwner();
-                    connectList = wifiP2pGroup.getClientList();
-                }
+            wifiP2pManager.requestGroupInfo(channel, wifiP2pGroup -> {
+                //当前服务器设备
+                groupDevice = wifiP2pGroup.getOwner();
+                connectList = wifiP2pGroup.getClientList();
             });
         }
     }
@@ -360,8 +328,7 @@ public class MainActivity extends BaseActivity {
 
             @Override
             public void onFailure(int reason) {
-                Log.e(TAG, "创建群组失败: " + reason);
-                refreshMsgList("server status : create group fail !!!");
+                refreshMsgList(1,"server status : create group fail !!!");
                 btnService.setText("创建群组失败");
             }
         });
@@ -370,14 +337,8 @@ public class MainActivity extends BaseActivity {
 
 
 
-    private void refreshDevice(int location) {
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                adapter.setDatas(list);
-            }
-        });
-        refreshMsgList("refresh device list .." + location);
+    private void refreshDevice() {
+        runOnUiThread(() -> adapter.setDatas(list));
     }
 
 
@@ -390,8 +351,8 @@ public class MainActivity extends BaseActivity {
             public void onSuccess() {
                 btnService.setText("创建服务");
                 try {
-                    serverSocket.close();
-                    refreshMsgList("service close..");
+                    if(serverSocket != null)serverSocket.close();
+                    refreshMsgList(" status : service close..");
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -399,7 +360,7 @@ public class MainActivity extends BaseActivity {
 
             @Override
             public void onFailure(int i) {
-                refreshMsgList("remove service fail!");
+                refreshMsgList(1,"remove service fail!");
             }
         });
 
@@ -408,7 +369,7 @@ public class MainActivity extends BaseActivity {
     /**
      * 断开连接设备
      *
-     * @param wifiP2pDevice
+     * @param wifiP2pDevice 设备
      */
     private void disconnect(final WifiP2pDevice wifiP2pDevice) {
         if (wifiP2pDevice.status == WifiP2pDevice.CONNECTED) {
@@ -433,12 +394,12 @@ public class MainActivity extends BaseActivity {
 
                 @Override
                 public void onFailure(int i) {
-                    refreshMsgList("device " + wifiP2pDevice.deviceName + " disconnect fail!");
+                    refreshMsgList(1,"device " + wifiP2pDevice.deviceName + " disconnect fail!");
                 }
             });
             startSearchDevice();
         } else {
-            refreshMsgList("please connect " + wifiP2pDevice.deviceName + "..");
+            refreshMsgList(2,"please connect " + wifiP2pDevice.deviceName + "..");
             showMsg("please connect device!");
         }
     }
@@ -475,12 +436,7 @@ public class MainActivity extends BaseActivity {
      * 关于WiFi P2P的开发，大部分都借助于WifiP2pManager实现，而且一些状态的获取都是基于广播的，
      * 所以我们需要建立一个广播接受者，来接受各种相关的广播，首先需要注册下面几个广播：
      */
-    private WifiP2pManager.ChannelListener channelListener = new WifiP2pManager.ChannelListener() {
-        @Override
-        public void onChannelDisconnected() {
-            Log.d(TAG, "onChannelDisconnected: 。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。");
-        }
-    };
+    private WifiP2pManager.ChannelListener channelListener = () -> Log.d(TAG, "onChannelDisconnected: 。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。。");
 
     private LinkedList<WifiP2pDevice> list = new LinkedList<>();
     private BroadcastReceiver receiver = new BroadcastReceiver() {
@@ -493,7 +449,7 @@ public class MainActivity extends BaseActivity {
                         if (p2pIsEnable) {
                             refreshMsgList("Wifi p2p 可用...");
                         } else {
-                            refreshMsgList("Wifi p2p 不可用...");
+                            refreshMsgList(1,"Wifi p2p 不可用...");
                         }
                         break;
                     case WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION:
@@ -501,11 +457,10 @@ public class MainActivity extends BaseActivity {
                         WifiP2pDeviceList mPeers = intent.getParcelableExtra(WifiP2pManager.EXTRA_P2P_DEVICE_LIST);
                         list.clear(); //清除旧的信息
                         list.addAll(mPeers.getDeviceList()); //更新信息
-                        refreshMsgList("扫描到设备列表，找到" + list.size() + "个设备..");
-                        refreshDevice(2);
+                        refreshMsgList("扫描到设备列表，找到" + list.size() + "个设备,刷新设备列表状态..");
+                        refreshDevice();
                         break;
                     case WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION:
-                        refreshMsgList("Wifi p2p 连接状态改变..");
                         //这是连接状态发送变化时的广播，如连接了一个设备，断开了一个设备都会接收到广播。着这个广播到来时，
                         //NetworkInfo 的isConnected()可以判断时连接还是断开时接收到的广播。
                         NetworkInfo networkInfo = intent.getParcelableExtra(WifiP2pManager.EXTRA_NETWORK_INFO);
@@ -523,7 +478,8 @@ public class MainActivity extends BaseActivity {
                             Iterator iterable = connectList.iterator();
                             while (iterable.hasNext()) {
                                 WifiP2pDevice wifiP2pDevice = (WifiP2pDevice) iterable.next();
-                                stringBuilder.append(wifiP2pDevice.deviceName + " ");
+                                stringBuilder.append(wifiP2pDevice.deviceName);
+                                stringBuilder.append(" ");
                             }
                             refreshMsgList(stringBuilder.toString());
                         } else {
@@ -536,19 +492,17 @@ public class MainActivity extends BaseActivity {
                                     refreshMsgList("server status : ip -->"+ipString);
                                 }
                                 //连接服务器ip地址
-                                ThreadPoolManager.getInstance(true).execute(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        refreshMsgList("正在连接服务器(" + ipString + ")..");
-                                        DataBean dataBean = new DataBean();
-                                        dataBean.setDataType(1);
-                                        dataBean.setData("测试消息，可以让服务器把在线的客户端都保存起来..");
-                                        connectServiceSocket(dataBean, ipString, SERVICE_PORT);
-                                    }
+                                ThreadPoolManager.getInstance(true).execute(() -> {
+                                    refreshMsgList("正在连接服务器(" + ipString + ")..");
+                                    DataBean dataBean = new DataBean();
+                                    dataBean.setDataType(1);
+                                    dataBean.setData("测试消息，可以让服务器把在线的客户端都保存起来..");
+                                    connectServiceSocket(dataBean, ipString, SERVICE_PORT);
                                 });
                             }
                         }
-                        refreshDevice(11);
+                        refreshMsgList("status : 设备状态发生变化，刷新列表..");
+                        refreshDevice();
                         break;
                     case WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION:
                         refreshMsgList("Wifi p2p 设备信息状态改变..3");
@@ -582,12 +536,11 @@ public class MainActivity extends BaseActivity {
         try {
             refreshMsgList("server status : start server ..");
             serverSocket = new ServerSocket(serverPort);
+            refreshMsgList("server status : server start successfully,wait client connect ...");
             while (true){
-                refreshMsgList("server status : server start successfuly,wait client connect ...");
                 Socket socket = serverSocket.accept();
-                final InputStream inputStream = socket.getInputStream();
                 //多线程处理响应客户端
-                ThreadPoolManager.getInstance(true).execute(() -> acceptMsg(socket,inputStream));
+                ThreadPoolManager.getInstance(true).execute(() -> acceptMsg(socket));
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -595,53 +548,81 @@ public class MainActivity extends BaseActivity {
         }
     }
 
-    private static MainActivity instance;
-
-    public static MainActivity getInstance() {
-        if(instance == null){
-            instance = new MainActivity();
-        }
-        return instance;
-    }
-
 
     /**
      * 处理服务器消息
      * @param socket
-     * @param inputStream
      */
-    private void acceptMsg( Socket socket,InputStream inputStream) {
+    private void acceptMsg( Socket socket) {
+        InputStream inputStream = null;
         try {
-            refreshMsgList("server status : 收到数据了...");
             inputStream = socket.getInputStream();
+//            refreshMsgList("server status : 收到数据了...");
             byte[] bytes = new byte[1024];
             int length = 0;
             StringBuilder stringBuilder = new StringBuilder();
+//            refreshMsgList("server status : inputStream.available() -- >"+inputStream.available());
+            Thread.sleep(50);
             while (inputStream.available() > 0) {
                 length = inputStream.read(bytes);
                 String s = new String(bytes, 0, length);
                 refreshMsgList("server status : s -- > "+s);
                 stringBuilder.append(s);
             }
-            refreshMsgList("server status : from client msg -->" + stringBuilder.toString());
+            String data = stringBuilder.toString();
+            processorData(data);
+//            DataBean msgBean = JSON.parseObject(data,DataBean.class);
+//            refreshMsgList("server status : from client msg -->" + data);
         }catch (IOException e){
-            refreshMsgList("service status : IOException "+e.getMessage());
-        } finally {
+            refreshMsgList(1,"service status : IOException "+e.getMessage());
+        } catch (InterruptedException e){
+            e.printStackTrace();
+        } finally{
             if (inputStream != null){
                 try {
                     inputStream.close();
                 } catch (IOException e) {
                     e.printStackTrace();
+                    refreshMsgList(1,"client status : inputStream close IOException!");
                 }
             }
         }
     }
 
     /**
+     * 处理收到的数据
+     * @param data
+     */
+    private void processorData(String data) {
+        try {
+            JSONObject jsonObject = new JSONObject(data);
+            int type = jsonObject.optInt("dataType");
+            if(type == 2){
+                //图片
+                refreshMsgList(2,"server status : 收到图片啦");
+                String imgBase64 = jsonObject.optString("base64");
+                if(TextUtils.isEmpty(imgBase64)){
+                    refreshMsgList(1,"server status : imgBase64 is null!");
+                }else {
+                    Bitmap bitmap = ImageUtil.base64ToBitmap(imgBase64);
+                    imageView.setImageBitmap(bitmap);
+                    refreshMsgList("server status : show img finish!");
+                }
+            }else {
+                //文本
+                refreshMsgList("server status : 收到文本-->"+ jsonObject.optString("data"));
+            }
+
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
      * 向服务器发送数据
-     * @param dataBean
-     * @param ipString
-     * @param serverPort
+     * @param dataBean 消息对象
+     * @param ipString IP地址
+     * @param serverPort 服务器端口
      */
     private void connectServiceSocket(DataBean dataBean,String ipString, int serverPort) {
         //我的电脑
@@ -659,14 +640,14 @@ public class MainActivity extends BaseActivity {
             refreshMsgList("client status : data send finish !");
         } catch (IOException e) {
             e.printStackTrace();
-            refreshMsgList("client status : IOException "+e.getMessage());
-        }finally {
+            refreshMsgList(1,"client status : IOException "+e.getMessage());
+        }/*finally {
             if(socket != null){
                 try {
                     socket.close();
                 } catch (IOException e) {
                     e.printStackTrace();
-                    refreshMsgList("client status : socket close IOException! "+e.getMessage());
+                    refreshMsgList(1,"client status : socket close IOException! "+e.getMessage());
                 }
             }
            if(outputStream != null){
@@ -674,10 +655,10 @@ public class MainActivity extends BaseActivity {
                    outputStream.close();
                } catch (IOException e) {
                    e.printStackTrace();
-                   refreshMsgList("client status : outputStream close IOException!");
+                   refreshMsgList(1,"client status : outputStream close IOException!");
                }
            }
-        }
+        }*/
     }
 
 
@@ -685,18 +666,39 @@ public class MainActivity extends BaseActivity {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == REQUEST_CODE_CHOOSE && resultCode == RESULT_OK) {
-
-            Log.e("OnActivityResult ", String.valueOf(Matisse.obtainOriginalState(data)));
-            Log.d("获取图片", "onActivityResult: " + Matisse.obtainPathResult(data).get(0));
+            refreshMsgList(2,"client status : get img local path -->"+Matisse.obtainPathResult(data).get(0));
             imgPath = Matisse.obtainPathResult(data).get(0);
             //连接服务器ip地址
-            ThreadPoolManager.getInstance(true).execute(new Runnable() {
-                @Override
-                public void run() {
-                    DataBean dataBean = new DataBean();
-                    dataBean.setDataType(2);
-                    connectServiceSocket(dataBean,ipString, SERVICE_PORT);
+            ThreadPoolManager.getInstance(true).execute(() -> {
+                DataBean dataBean = new DataBean();
+                dataBean.setDataType(2);
+               byte[] imgBytes = ImageUtil.imgTobyteArray(MainActivity.this,imgPath);
+                if(imgBytes == null || imgBytes.length == 0){
+                    refreshMsgList(1,"client status : imgBytes length -- > 0");
+                    return;
                 }
+                refreshMsgList("client status : imgBytes length -- >"+imgBytes.length);
+//                dataBean.setImg(imgBytes);
+                String imgStr = ImageUtil.imgToBase64(MainActivity.this,imgPath);
+                refreshMsgList("client status : 图片base64长度-->"+imgStr.length()+" "+imgStr);
+//                dataBean.setData(imgStr);
+                dataBean.setBase64(imgStr);
+                connectServiceSocket(dataBean,ipString, SERVICE_PORT);
+                /*try {
+                    Socket socket = new Socket(ipString, SERVICE_PORT);
+                    DataOutputStream out = new DataOutputStream(socket.getOutputStream());
+                    Bitmap bitmap = BitmapFactory.decodeFile(imgPath);
+                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                    //读取图片到ByteArrayOutputStream
+                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, baos);
+                    byte[] bytes = baos.toByteArray();
+                    out.write(bytes);
+                    refreshMsgList("client status : send img finish -- >"+bytes.length);
+                    out.close();
+                    socket.close();
+                }catch (IOException e){
+                    e.printStackTrace();
+                }*/
             });
         }
     }
@@ -767,6 +769,7 @@ public class MainActivity extends BaseActivity {
 
     @OnNeverAskAgain({Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.CAMERA, Manifest.permission.ACCESS_WIFI_STATE})
     void showNeverAskForCamera() {
+        refreshMsgList(1,"status : 没有权限!!!!");
         Log.d(TAG, "showNeverAskForCamera: 不再提醒");
         isFinish = true;
         toastMsg(getString(R.string.permission_request_for_bluetooth_result_reject1));
@@ -775,6 +778,4 @@ public class MainActivity extends BaseActivity {
     private void toastMsg(String msg) {
         Toast.makeText(MainActivity.this, msg, Toast.LENGTH_LONG).show();
     }
-
-
 }

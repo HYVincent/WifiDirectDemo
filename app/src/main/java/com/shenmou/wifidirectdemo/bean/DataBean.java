@@ -13,8 +13,25 @@ import java.io.Serializable;
 public class DataBean implements Serializable{
     // 1 文本  2 图片
     private int dataType;
-
+    private String base64;
+    private byte[] img;
     private Object data;
+
+    public String getBase64() {
+        return base64;
+    }
+
+    public void setBase64(String base64) {
+        this.base64 = base64;
+    }
+
+    public byte[] getImg() {
+        return img;
+    }
+
+    public void setImg(byte[] img) {
+        this.img = img;
+    }
 
     public int getDataType() {
         return dataType;

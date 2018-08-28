@@ -8,13 +8,15 @@
     android:background="#ffffff"
     tools:context=".activity.MainActivity">
 
-    <android.support.v4.widget.NestedScrollView
+    <ScrollView
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
+
+
         <LinearLayout
             android:orientation="horizontal"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content">
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/size_10">
 
             <Button
                 android:id="@+id/btn_start_scan_device"
@@ -37,11 +39,18 @@
             <Button
                 android:text="选择图片"
                 android:id="@+id/btn_select_img"
-                android:layout_width="wrap_content"
+                android:layout_width="200dp"
                 android:layout_height="wrap_content" />
 
+
         </LinearLayout>
-    </android.support.v4.widget.NestedScrollView>
+
+    </ScrollView>
+
+    <ImageView
+        android:id="@+id/imageview"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/size_50" />
 
     <android.support.v7.widget.RecyclerView
         android:background="@color/color_black_2e2f33"
@@ -49,38 +58,39 @@
         android:layout_width="match_parent"
         android:layout_height="@dimen/size_260"/>
 
-   <RelativeLayout
-       android:layout_width="match_parent"
-       android:layout_height="match_parent">
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
 
 
 
-       <RelativeLayout
-           android:id="@+id/rl"
-           android:layout_alignParentBottom="true"
-           android:layout_width="match_parent"
-           android:layout_height="@dimen/size_100">
+        <RelativeLayout
+            android:id="@+id/rl"
+            android:layout_alignParentBottom="true"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/size_100">
 
-           <Button
-               android:text="Send"
-               android:layout_alignParentRight="true"
-               android:id="@+id/to_send_msg"
-               android:layout_width="wrap_content"
-               android:layout_height="match_parent" />
+            <Button
+                android:text="Send"
+                android:layout_alignParentRight="true"
+                android:id="@+id/to_send_msg"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent" />
 
-           <EditText
-               android:id="@+id/et_msg"
-               android:layout_toLeftOf="@id/to_send_msg"
-               android:layout_width="match_parent"
-               android:layout_height="match_parent" />
+            <EditText
+                android:layout_alignParentBottom="true"
+                android:id="@+id/et_msg"
+                android:layout_toLeftOf="@id/to_send_msg"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
 
-       </RelativeLayout>
-       <android.support.v7.widget.RecyclerView
-           android:layout_above="@id/rl"
-           android:id="@+id/recycleView"
-           android:layout_width="match_parent"
-           android:layout_height="match_parent"/>
+        </RelativeLayout>
+        <android.support.v7.widget.RecyclerView
+            android:layout_above="@id/rl"
+            android:id="@+id/recycleView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"/>
 
-   </RelativeLayout>
+    </RelativeLayout>
 
 </LinearLayout>
