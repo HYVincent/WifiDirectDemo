@@ -15,7 +15,16 @@ public class DataBean implements Serializable{
     private int dataType;
     private String base64;
     private byte[] img;
+    private String filePath;
     private Object data;
+
+    public String getFilePath() {
+        return filePath;
+    }
+
+    public void setFilePath(String filePath) {
+        this.filePath = filePath;
+    }
 
     public String getBase64() {
         return base64;

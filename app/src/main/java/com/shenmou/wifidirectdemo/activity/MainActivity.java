@@ -17,6 +17,7 @@ import android.net.wifi.p2p.WifiP2pInfo;
 import android.net.wifi.p2p.WifiP2pManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Message;
 import android.support.annotation.NonNull;
 import android.support.annotation.RequiresApi;
 import android.support.v7.app.AlertDialog;
@@ -30,17 +31,20 @@ import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.Toast;
 
-import com.alibaba.fastjson.JSON;
+import com.common.util.file.FileSizeUtil;
 import com.common.util.util.ThreadPoolManager;
 import com.shenmou.wifidirectdemo.R;
 import com.shenmou.wifidirectdemo.adapter.MsgAdapter;
 import com.shenmou.wifidirectdemo.adapter.WifiDrectAdapter;
 import com.shenmou.wifidirectdemo.base.BaseActivity;
 import com.shenmou.wifidirectdemo.bean.DataBean;
+import com.shenmou.wifidirectdemo.bean.FileBean;
 import com.shenmou.wifidirectdemo.bean.MsgBean;
+import com.shenmou.wifidirectdemo.utils.FileUtils;
 import com.shenmou.wifidirectdemo.utils.GifSizeFilter;
 import com.shenmou.wifidirectdemo.utils.Glide4Engine;
 import com.shenmou.wifidirectdemo.utils.ImageUtil;
+import com.shenmou.wifidirectdemo.utils.Md5Util;
 import com.zhihu.matisse.Matisse;
 import com.zhihu.matisse.MimeType;
 import com.zhihu.matisse.filter.Filter;
@@ -49,10 +53,16 @@ import com.zhihu.matisse.internal.entity.CaptureStrategy;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
@@ -351,7 +361,7 @@ public class MainActivity extends BaseActivity {
             public void onSuccess() {
                 btnService.setText("创建服务");
                 try {
-                    if(serverSocket != null)serverSocket.close();
+                    if(mServerSocket != null)mServerSocket.close();
                     refreshMsgList(" status : service close..");
                 } catch (IOException e) {
                     e.printStackTrace();
@@ -410,9 +420,9 @@ public class MainActivity extends BaseActivity {
         super.onDestroy();
         mContext.unregisterReceiver(receiver);
         stopSearchDevice();
-        if(serverSocket != null){
+        if(mServerSocket != null){
             try {
-                serverSocket.close();
+                mServerSocket.close();
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -526,97 +536,81 @@ public class MainActivity extends BaseActivity {
         }
     };
 
-    private ServerSocket serverSocket;
-    private Socket clientSocket;
+    private ServerSocket mServerSocket;
+    private Socket mSocket;
+    private InputStream mInputStream;
+    private ObjectInputStream mObjectInputStream;
+    private FileOutputStream mFileOutputStream;
+    private File mFile;
+    private String acceptFileSaveDir = "WifiDirect";//接收的文件保存目录
 
     /**
      * 当作为服务器时，需开启Socket服务器
      */
     private void createSocketService(int serverPort) {
         try {
-            refreshMsgList("server status : start server ..");
-            serverSocket = new ServerSocket(serverPort);
-            refreshMsgList("server status : server start successfully,wait client connect ...");
-            while (true){
-                Socket socket = serverSocket.accept();
-                //多线程处理响应客户端
-                ThreadPoolManager.getInstance(true).execute(() -> acceptMsg(socket));
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-            refreshMsgList("server status : server exception! +/n" + e.getMessage());
-        }
-    }
+            mServerSocket = new ServerSocket();
+            mServerSocket.setReuseAddress(true);
+            mServerSocket.bind(new InetSocketAddress(serverPort));
+            mSocket = mServerSocket.accept();
+            refreshMsgList("new client connect successfully(" + mSocket.getRemoteSocketAddress()+")!");
 
-
-    /**
-     * 处理服务器消息
-     * @param socket
-     */
-    private void acceptMsg( Socket socket) {
-        InputStream inputStream = null;
-        try {
-            inputStream = socket.getInputStream();
-//            refreshMsgList("server status : 收到数据了...");
-            byte[] bytes = new byte[1024];
-            int length = 0;
-            StringBuilder stringBuilder = new StringBuilder();
-//            refreshMsgList("server status : inputStream.available() -- >"+inputStream.available());
-            Thread.sleep(50);
-            while (inputStream.available() > 0) {
-                length = inputStream.read(bytes);
-                String s = new String(bytes, 0, length);
-                refreshMsgList("server status : s -- > "+s);
-                stringBuilder.append(s);
+            mInputStream = mSocket.getInputStream();
+            mObjectInputStream = new ObjectInputStream(mInputStream);
+            FileBean fileBean = (FileBean) mObjectInputStream.readObject();
+            if(TextUtils.isEmpty(fileBean.getFilePath())){
+                refreshMsgList("service status : accept msg ->"+fileBean.getData());
+                return;
             }
-            String data = stringBuilder.toString();
-            processorData(data);
-//            DataBean msgBean = JSON.parseObject(data,DataBean.class);
-//            refreshMsgList("server status : from client msg -->" + data);
-        }catch (IOException e){
-            refreshMsgList(1,"service status : IOException "+e.getMessage());
-        } catch (InterruptedException e){
-            e.printStackTrace();
-        } finally{
-            if (inputStream != null){
-                try {
-                    inputStream.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                    refreshMsgList(1,"client status : inputStream close IOException!");
+            String name = new File(fileBean.getFilePath()).getName();
+            refreshMsgList("客户端传递的文件名称 : " + name);
+            refreshMsgList("客户端传递的MD5 : " + fileBean.getMd5());
+            String fullPath = FileUtils.getExternalStorageRoot(MainActivity.this)+File.separator+acceptFileSaveDir+File.separator;
+            //TODO 创建文件路径
+            FileUtils.createOrExistsDir(fullPath);
+            mFile = new File(fullPath + name);
+            mFileOutputStream = new FileOutputStream(mFile);
+            refreshMsgList("service status : start accept file ..");
+            //开始接收文件
+//            mHandler.sendEmptyMessage(40);
+            byte bytes[] = new byte[1024];
+            int len;
+            long total = 0;
+            int progress;
+            while ((len = mInputStream.read(bytes)) != -1) {
+                mFileOutputStream.write(bytes, 0, len);
+                total += len;
+                progress = (int) ((total * 100) / fileBean.getFileLength());
+                refreshMsgList("service status : accept file progress-->"+progress);
+                Message message = Message.obtain();
+                message.what = 50;
+                message.obj = progress;
+//                mHandler.sendMessage(message);
+            }
+            //新写入文件的MD5
+            String md5New = Md5Util.getMd5(mFile);
+            //发送过来的MD5
+            String md5Old = fileBean.getMd5();
+            if (md5New != null || md5Old != null) {
+                if (md5New.equals(md5Old)) {
+//                    mHandler.sendEmptyMessage(60);
+                    Log.e(TAG, "文件接收成功");
+                    refreshMsgList("service status : 文件接收完成!");
                 }
+            } else {
+//                mHandler.sendEmptyMessage(70);
             }
+
+            mServerSocket.close();
+            mInputStream.close();
+            mObjectInputStream.close();
+            mFileOutputStream.close();
+        } catch (Exception e) {
+//            mHandler.sendEmptyMessage(70);
+            Log.e(TAG, "文件接收异常");
         }
     }
 
-    /**
-     * 处理收到的数据
-     * @param data
-     */
-    private void processorData(String data) {
-        try {
-            JSONObject jsonObject = new JSONObject(data);
-            int type = jsonObject.optInt("dataType");
-            if(type == 2){
-                //图片
-                refreshMsgList(2,"server status : 收到图片啦");
-                String imgBase64 = jsonObject.optString("base64");
-                if(TextUtils.isEmpty(imgBase64)){
-                    refreshMsgList(1,"server status : imgBase64 is null!");
-                }else {
-                    Bitmap bitmap = ImageUtil.base64ToBitmap(imgBase64);
-                    imageView.setImageBitmap(bitmap);
-                    refreshMsgList("server status : show img finish!");
-                }
-            }else {
-                //文本
-                refreshMsgList("server status : 收到文本-->"+ jsonObject.optString("data"));
-            }
-
-        } catch (JSONException e) {
-            e.printStackTrace();
-        }
-    }
 
     /**
      * 向服务器发送数据
@@ -625,40 +619,45 @@ public class MainActivity extends BaseActivity {
      * @param serverPort 服务器端口
      */
     private void connectServiceSocket(DataBean dataBean,String ipString, int serverPort) {
-        //我的电脑
-//        ipString = "192.168.1.111";
-        OutputStream outputStream = null;
-        Socket socket = null;
         try {
-            refreshMsgList("client status : start client connect service("+ipString+")..");
-            socket = new Socket(ipString,serverPort);
-            outputStream = socket.getOutputStream();
-            byte[] datas = JSON.toJSONString(dataBean).getBytes();
-            refreshMsgList("client status : datas length -->"+datas.length+"  "+new String(datas));
-            outputStream.write(datas);
-            outputStream.flush();
-            refreshMsgList("client status : data send finish !");
-        } catch (IOException e) {
-            e.printStackTrace();
-            refreshMsgList(1,"client status : IOException "+e.getMessage());
-        }/*finally {
-            if(socket != null){
-                try {
-                    socket.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                    refreshMsgList(1,"client status : socket close IOException! "+e.getMessage());
-                }
+            refreshMsgList("client status : start client to send task ..");
+            Socket socket = new Socket();
+            InetSocketAddress inetSocketAddress = new InetSocketAddress(ipString, serverPort);
+            socket.connect(inetSocketAddress);
+            OutputStream outputStream = socket.getOutputStream();
+            ObjectOutputStream objectOutputStream = new ObjectOutputStream(outputStream);
+            objectOutputStream.writeObject(dataBean);
+            if(TextUtils.isEmpty(dataBean.getFilePath())){
+                objectOutputStream.close();
+                return;
             }
-           if(outputStream != null){
-               try {
-                   outputStream.close();
-               } catch (IOException e) {
-                   e.printStackTrace();
-                   refreshMsgList(1,"client status : outputStream close IOException!");
-               }
-           }
-        }*/
+            refreshMsgList("client status : start client to send file task ..");
+            FileInputStream inputStream = new FileInputStream(new File(dataBean.getFilePath()));
+            long size = FileSizeUtil.getFileSize(new File(dataBean.getFilePath()));
+            long total = 0;
+            byte bytes[] = new byte[1024];
+            int len;
+            while ((len = inputStream.read(bytes)) != -1) {
+                outputStream.write(bytes, 0, len);
+                total += len;
+                int progress = (int) ((total * 100) / size);
+                refreshMsgList("client status : send file progress -->"+progress);
+                Log.e(TAG, "文件发送进度：" + progress);
+                Message message = Message.obtain();
+                message.what = 10;
+                message.obj = progress;
+//                mHandler.sendMessage(message);
+            }
+            outputStream.close();
+            objectOutputStream.close();
+            inputStream.close();
+            socket.close();
+//            mHandler.sendEmptyMessage(20);
+            Log.e(TAG, "文件发送成功");
+        } catch (Exception e) {
+//            mHandler.sendEmptyMessage(30);
+            Log.e(TAG, "文件发送异常");
+        }
     }
 
 
@@ -672,7 +671,7 @@ public class MainActivity extends BaseActivity {
             ThreadPoolManager.getInstance(true).execute(() -> {
                 DataBean dataBean = new DataBean();
                 dataBean.setDataType(2);
-               byte[] imgBytes = ImageUtil.imgTobyteArray(MainActivity.this,imgPath);
+               /*byte[] imgBytes = ImageUtil.imgTobyteArray(MainActivity.this,imgPath);
                 if(imgBytes == null || imgBytes.length == 0){
                     refreshMsgList(1,"client status : imgBytes length -- > 0");
                     return;
@@ -682,7 +681,8 @@ public class MainActivity extends BaseActivity {
                 String imgStr = ImageUtil.imgToBase64(MainActivity.this,imgPath);
                 refreshMsgList("client status : 图片base64长度-->"+imgStr.length()+" "+imgStr);
 //                dataBean.setData(imgStr);
-                dataBean.setBase64(imgStr);
+                dataBean.setBase64(imgStr);*/
+                dataBean.setFilePath(imgPath);
                 connectServiceSocket(dataBean,ipString, SERVICE_PORT);
                 /*try {
                     Socket socket = new Socket(ipString, SERVICE_PORT);
