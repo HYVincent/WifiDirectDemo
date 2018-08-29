@@ -552,9 +552,24 @@ public class MainActivity extends BaseActivity {
             mServerSocket = new ServerSocket();
             mServerSocket.setReuseAddress(true);
             mServerSocket.bind(new InetSocketAddress(serverPort));
-            mSocket = mServerSocket.accept();
-            refreshMsgList("new client connect successfully(" + mSocket.getRemoteSocketAddress()+")!");
+            while (true) {
+                mSocket = mServerSocket.accept();
+                new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        acceptServiceSocketAction(mSocket);
+                    }
+                }).start();
+            }
+        }catch (IOException e){
+            e.printStackTrace();
+            refreshMsgList("service status : service exception！");
+        }
+    }
 
+    private void acceptServiceSocketAction(Socket mSocket) {
+            try {
+            refreshMsgList("new client connect successfully(" + mSocket.getRemoteSocketAddress()+")!");
             mInputStream = mSocket.getInputStream();
             mObjectInputStream = new ObjectInputStream(mInputStream);
             FileBean fileBean = (FileBean) mObjectInputStream.readObject();
