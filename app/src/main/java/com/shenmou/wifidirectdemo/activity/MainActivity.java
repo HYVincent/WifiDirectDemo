@@ -184,9 +184,9 @@ public class MainActivity extends BaseActivity {
         msgBean.setTime(System.currentTimeMillis());
         msgBean.setMsg(msg);
         msgBean.setMsgLevel(0);
-        if (msgBeans.size() > 100) {
+    /*    if (msgBeans.size() > 100) {
             msgBeans.remove(0);
-        }
+        }*/
         msgBeans.add(msgBean);
         runOnUiThread(() -> {
             msgAdapter.setData(msgBeans);
