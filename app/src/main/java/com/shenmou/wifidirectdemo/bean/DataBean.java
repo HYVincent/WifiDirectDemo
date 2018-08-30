@@ -11,8 +11,26 @@ public class DataBean implements Serializable{
     public static final String serialVersionUID = "6321689524634663223356";
     private String data;
     private String filePath;
+    private long time;//时间戳
+    private int msgType;//消息类型 1 心跳消息 2 文本消息 3  图片消息
 
     private long fileLength;
+
+    public long getTime() {
+        return time;
+    }
+
+    public void setTime(long time) {
+        this.time = time;
+    }
+
+    public int getMsgType() {
+        return msgType;
+    }
+
+    public void setMsgType(int msgType) {
+        this.msgType = msgType;
+    }
 
     //MD5码：保证文件的完整性
     private String md5;

@@ -36,6 +36,7 @@ import android.widget.Toast;
 
 import com.common.util.file.FileSizeUtil;
 import com.common.util.util.ThreadPoolManager;
+import com.common.view.util.DateUtil;
 import com.shenmou.wifidirectdemo.R;
 import com.shenmou.wifidirectdemo.adapter.MsgAdapter;
 import com.shenmou.wifidirectdemo.adapter.WifiDrectAdapter;
@@ -65,9 +66,11 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import permissions.dispatcher.NeedsPermission;
@@ -141,7 +144,14 @@ public class MainActivity extends BaseActivity {
             String msg = etMsg.getText().toString();
             DataBean dataBean = new DataBean();
             dataBean.setData(msg);
-            ThreadPoolManager.getInstance(true).execute(() -> connectServiceSocket(dataBean, ipString, SERVICE_PORT));
+            dataBean.setMsgType(2);
+            ThreadPoolManager.getInstance(true).execute(new Runnable() {
+                @Override
+                public void run() {
+//                     connectServiceSocket(dataBean, ipString, SERVICE_PORT);
+                    sendMsgToService(dataBean);
+                }
+            });
         });
     }
 
@@ -260,7 +270,12 @@ public class MainActivity extends BaseActivity {
                 refreshMsgList(1, "搜索设备失败!");
             }
         });
-        wifiP2pManager.requestPeers(channel, wifiP2pDeviceList -> Log.d(TAG, "onPeersAvailable: ........"));
+        wifiP2pManager.requestPeers(channel, new WifiP2pManager.PeerListListener() {
+            @Override
+            public void onPeersAvailable(WifiP2pDeviceList wifiP2pDeviceList) {
+
+            }
+        });
     }
 
 
@@ -496,7 +511,8 @@ public class MainActivity extends BaseActivity {
                                     refreshMsgList("正在连接服务器(" + ipString + ")..");
                                     DataBean dataBean = new DataBean();
                                     dataBean.setData("测试消息，可以让服务器把在线的客户端都保存起来..");
-                                    connectServiceSocket(dataBean, ipString, SERVICE_PORT);
+                                    connectServiceSocket(ipString, SERVICE_PORT);
+                                    sendHeartMsg();
                                 });
                             }
                         }
@@ -611,9 +627,9 @@ public class MainActivity extends BaseActivity {
             } else {
 //                mHandler.sendEmptyMessage(70);
             }
-            mInputStream.close();
-            mObjectInputStream.close();
-            mFileOutputStream.close();
+//            mInputStream.close();
+//            mObjectInputStream.close();
+//            mFileOutputStream.close();
         } catch (Exception e) {
 //            mHandler.sendEmptyMessage(70);
 //            closeSocketService();
@@ -621,6 +637,14 @@ public class MainActivity extends BaseActivity {
             Log.e(TAG, "文件接收异常");
             refreshMsgList("service status : accept data exception !");
         }
+    }
+
+    private static Map<String, Socket> connectListSocket = new HashMap<>();
+
+    public void sendDataToAllClient(DataBean dataBean) {
+       /* for (int i = 0;i<connectListSocket.size();i++){
+            connectListSocket.get()
+        }*/
     }
 
     private void closeSocketService() {
@@ -633,22 +657,34 @@ public class MainActivity extends BaseActivity {
         }
     }
 
+    //客户端socket，保持连接
+    private Socket clientSocket = null;
+    private OutputStream outputStream = null;
+    private ObjectOutputStream objectOutputStream = null;
 
-    /**
-     * 向服务器发送数据
-     *
-     * @param dataBean   消息对象
-     * @param ipString   IP地址
-     * @param serverPort 服务器端口
-     */
-    private void connectServiceSocket(DataBean dataBean, String ipString, int serverPort) {
+    private void sendHeartMsg() {
+        Log.e(TAG, "sendHeartMsg: ..................................." );
+        while (true) {
+            try {
+                if (objectOutputStream != null) {
+                    Thread.sleep(2 * 1000);
+                    DataBean dataBean = new DataBean();
+                    dataBean.setMsgType(1);
+                    dataBean.setTime(System.currentTimeMillis());
+                    dataBean.setData("I'm heart msg !");
+                    objectOutputStream.writeObject(dataBean);
+                    refreshMsgList("client status : send heart msg to service !" + DateUtil.getDateString(DateUtil.DATE_FORMAT_ALL,System.currentTimeMillis()));
+                }else {
+                    Log.e(TAG, "sendHeartMsg: objectOutputStream is null ." );
+                }
+            } catch (InterruptedException | IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    private void sendMsgToService(DataBean dataBean) {
         try {
-            refreshMsgList("client status : start client to send task ..");
-            Socket socket = new Socket();
-            InetSocketAddress inetSocketAddress = new InetSocketAddress(ipString, serverPort);
-            socket.connect(inetSocketAddress);
-            OutputStream outputStream = socket.getOutputStream();
-            ObjectOutputStream objectOutputStream = new ObjectOutputStream(outputStream);
             objectOutputStream.writeObject(dataBean);
             if (TextUtils.isEmpty(dataBean.getFilePath())) {
                 objectOutputStream.close();
@@ -672,15 +708,38 @@ public class MainActivity extends BaseActivity {
                 message.obj = progress;
 //                mHandler.sendMessage(message);
             }
-            outputStream.close();
-            objectOutputStream.close();
-            inputStream.close();
-            socket.close();
+//            outputStream.close();
+//            objectOutputStream.close();
+//            inputStream.close();
+//            socket.close();
             refreshMsgList("client status : send file successfully !");
 //            mHandler.sendEmptyMessage(20);
             Log.e(TAG, "文件发送成功");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+
+    /**
+     * 向服务器发送数据
+     *
+     * @param ipString   IP地址
+     * @param serverPort 服务器端口
+     */
+    private void connectServiceSocket(String ipString, int serverPort) {
+        try {
+            refreshMsgList("client status : start client to send task ..");
+            while (true) {
+                if (clientSocket == null) {
+                    clientSocket = new Socket(ipString, serverPort);
+                    outputStream = clientSocket.getOutputStream();
+                    objectOutputStream = new ObjectOutputStream(outputStream);
+                }
+            }
         } catch (Exception e) {
 //            mHandler.sendEmptyMessage(30);
+            e.printStackTrace();
             Log.e(TAG, "文件发送异常");
             refreshMsgList("client status : send file error !");
         }
@@ -696,36 +755,11 @@ public class MainActivity extends BaseActivity {
             //连接服务器ip地址
             ThreadPoolManager.getInstance(true).execute(() -> {
                 DataBean dataBean = new DataBean();
-               /*byte[] imgBytes = ImageUtil.imgTobyteArray(MainActivity.this,imgPath);
-                if(imgBytes == null || imgBytes.length == 0){
-                    refreshMsgList(1,"client status : imgBytes length -- > 0");
-                    return;
-                }
-                refreshMsgList("client status : imgBytes length -- >"+imgBytes.length);
-//                dataBean.setImg(imgBytes);
-                String imgStr = ImageUtil.imgToBase64(MainActivity.this,imgPath);
-                refreshMsgList("client status : 图片base64长度-->"+imgStr.length()+" "+imgStr);
-//                dataBean.setData(imgStr);
-                dataBean.setBase64(imgStr);*/
                 dataBean.setMd5(Md5Util.getMd5(new File(imgPath)));
                 dataBean.setFilePath(imgPath);
                 dataBean.setFileLength(FileSizeUtil.getFileSize(new File(imgPath)));
-                connectServiceSocket(dataBean, ipString, SERVICE_PORT);
-                /*try {
-                    Socket socket = new Socket(ipString, SERVICE_PORT);
-                    DataOutputStream out = new DataOutputStream(socket.getOutputStream());
-                    Bitmap bitmap = BitmapFactory.decodeFile(imgPath);
-                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                    //读取图片到ByteArrayOutputStream
-                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, baos);
-                    byte[] bytes = baos.toByteArray();
-                    out.write(bytes);
-                    refreshMsgList("client status : send img finish -- >"+bytes.length);
-                    out.close();
-                    socket.close();
-                }catch (IOException e){
-                    e.printStackTrace();
-                }*/
+                dataBean.setMsgType(3);
+                sendDataToAllClient(dataBean);
             });
         }
     }
