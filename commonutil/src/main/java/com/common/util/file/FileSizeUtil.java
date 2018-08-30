@@ -4,6 +4,7 @@ import android.util.Log;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.IOException;
 import java.text.DecimalFormat;
 
 /**
@@ -88,17 +89,21 @@ public class FileSizeUtil {
      * @return
      * @throws Exception
      */
-    public static long getFileSize(File file) throws Exception {
-        long size = 0;
-        if (file.exists()) {
-            FileInputStream fis = null;
-            fis = new FileInputStream(file);
-            size = fis.available();
-        } else {
-            file.createNewFile();
-            Log.e("获取文件大小", "文件不存在!");
+    public static long getFileSize(File file) {
+        try {
+            long size = 0;
+            if (file.exists()) {
+                FileInputStream fis = null;
+                fis = new FileInputStream(file);
+                size = fis.available();
+            } else {
+                file.createNewFile();
+                Log.e("获取文件大小", "文件不存在!");
+            }
+            return size;
+        }catch (IOException e){
+            return 0;
         }
-        return size;
     }
 
     /**

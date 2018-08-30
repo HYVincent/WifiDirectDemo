@@ -1,59 +1,45 @@
 package com.shenmou.wifidirectdemo.utils;
 
-import android.content.Context;
-import android.os.Environment;
-import android.text.TextUtils;
+/*
+ * 该类是用来对文件进行基本的操作，包括复制，移动，创建，删除等操作。
+ */
+
+import android.util.Log;
 
 import java.io.File;
+import java.io.IOException;
 
-/**
- * @author Vincent QQ:1032006226
- * @version v1.0
- * @name EasyApp
- * @page com.common.util.file
- * @class describe
- * @date 2018/5/26 14:21
- */
 public class FileUtils {
 
-    /**
-     * 获取外部存储根目录
-     * @param mContext
-     * @return
-     */
-    public static String getExternalStorageRoot(Context mContext){
-        return Environment.getExternalStorageDirectory().getAbsolutePath();
-    }
+    private static final String TAG = "文件操作";
 
     /**
-     * 判断目录是否存在，不存在则判断是否创建成功
-     *
-     * @param dirPath 文件路径
-     * @return {@code true}: 存在或创建成功<br>{@code false}: 不存在或创建失败
+     * 创建文件
+     * @param filePath 包含文件名
+     * @return 文件新建成功则返回true
      */
-    public static boolean createOrExistsDir(String dirPath) {
-        return createOrExistsDir(getFileByPath(dirPath));
+    public static boolean createFile(String filePath) {
+        Log.e(TAG, "createFile: filePath -- >"+filePath );
+        File file = new File(filePath);
+        int index = filePath.lastIndexOf(File.separator);
+        String dir = filePath.substring(0,index);//目录
+        File files = new File(dir);
+        if(!files.exists()){
+            if(!files.mkdirs()){
+                Log.e(TAG, "createFile: 创建目录失败");
+                return false;
+            }
+        }
+        if(file.exists()){
+            file.delete();
+        }
+        try {
+            return file.createNewFile();
+        } catch (IOException e) {
+            e.printStackTrace();
+            return false;
+        }
     }
 
 
-
-    /**
-     * 判断目录是否存在，不存在则判断是否创建成功
-     *
-     * @param file 文件
-     * @return {@code true}: 存在或创建成功<br>{@code false}: 不存在或创建失败
-     */
-    public static boolean createOrExistsDir(File file) {
-        // 如果存在，是目录则返回true，是文件则返回false，不存在则返回是否创建成功
-        return file != null && (file.exists() ? file.isDirectory() : file.mkdirs());
-    }
-
-    /**
-     * 判断文件路径是否存在，不存在则创建
-     * @param filePath
-     * @return
-     */
-    public static File getFileByPath(String filePath) {
-        return TextUtils.isEmpty(filePath) ? null : new File(filePath);
-    }
 }

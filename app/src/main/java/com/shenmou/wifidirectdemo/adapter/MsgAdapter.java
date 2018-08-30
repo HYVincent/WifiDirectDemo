@@ -54,7 +54,7 @@ public class MsgAdapter extends RecyclerView.Adapter<MsgAdapter.MsgViewHolder> {
         msgViewHolder.tvTime.setText(DateUtils.getDateString(DateUtil.DATE_FORMAT_ALL,msgBean.getTime()));
         int level = msgBean.getMsgLevel();
         //0 一般消息  1 错误消息  2 警告消息
-        Log.d("----------------------", "onBindViewHolder: 消息.."+msgBean.getMsg()+"......"+level);
+//        Log.d("----------------------", "onBindViewHolder: 消息.."+msgBean.getMsg()+"......"+level);
          if(level ==  1){
             msgViewHolder.tvMsg.setTextColor(ContextCompat.getColor(mContext,R.color.color_red_FF0000));
         }else if(level ==  2){

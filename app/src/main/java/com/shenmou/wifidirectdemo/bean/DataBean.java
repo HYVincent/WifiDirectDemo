@@ -3,20 +3,27 @@ package com.shenmou.wifidirectdemo.bean;
 import java.io.Serializable;
 
 /**
- * @author Vincent Vincent
- * @version v1.0
- * @name WifiDirectDemo
- * @page com.shenmou.wifidirectdemo.bean
- * @class describe
- * @date 2018/8/27 16:18
+ * date：2018/2/24 on 17:00
+ * description: 文件详情
  */
+
 public class DataBean implements Serializable{
-    // 1 文本  2 图片
-    private int dataType;
-    private String base64;
-    private byte[] img;
+    public static final String serialVersionUID = "6321689524634663223356";
+    private String data;
     private String filePath;
-    private Object data;
+
+    private long fileLength;
+
+    //MD5码：保证文件的完整性
+    private String md5;
+
+    public String getData() {
+        return data;
+    }
+
+    public void setData(String data) {
+        this.data = data;
+    }
 
     public String getFilePath() {
         return filePath;
@@ -26,43 +33,19 @@ public class DataBean implements Serializable{
         this.filePath = filePath;
     }
 
-    public String getBase64() {
-        return base64;
+    public long getFileLength() {
+        return fileLength;
     }
 
-    public void setBase64(String base64) {
-        this.base64 = base64;
+    public void setFileLength(long fileLength) {
+        this.fileLength = fileLength;
     }
 
-    public byte[] getImg() {
-        return img;
+    public String getMd5() {
+        return md5;
     }
 
-    public void setImg(byte[] img) {
-        this.img = img;
-    }
-
-    public int getDataType() {
-        return dataType;
-    }
-
-    public void setDataType(int dataType) {
-        this.dataType = dataType;
-    }
-
-    public Object getData() {
-        return data;
-    }
-
-    public void setData(Object data) {
-        this.data = data;
-    }
-
-    @Override
-    public String toString() {
-        return "DataBean{" +
-                "dataType=" + dataType +
-                ", data=" + data +
-                '}';
+    public void setMd5(String md5) {
+        this.md5 = md5;
     }
 }
