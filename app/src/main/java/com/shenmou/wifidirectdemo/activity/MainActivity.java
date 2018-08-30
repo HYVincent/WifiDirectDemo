@@ -188,14 +188,18 @@ public class MainActivity extends BaseActivity {
             msgBeans.remove(0);
         }
         msgBeans.add(msgBean);
-        runOnUiThread(() -> msgAdapter.setData(msgBeans));
-        try {
-            if (recyclerViewMsg != null && msgAdapter != null) {
-                recyclerViewMsg.smoothScrollToPosition(msgAdapter.getItemCount() - 1);
+        runOnUiThread(() -> {
+            msgAdapter.setData(msgBeans);
+            try {
+                if (recyclerViewMsg != null && msgAdapter != null) {
+                    recyclerViewMsg.smoothScrollToPosition(msgAdapter.getItemCount() - 1);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
             }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        });
+
+
     }
 
     private void initRecycleView() {
@@ -374,7 +378,6 @@ public class MainActivity extends BaseActivity {
     }
 
 
-
     /**
      * 断开连接设备
      *
@@ -546,12 +549,13 @@ public class MainActivity extends BaseActivity {
         } catch (IOException e) {
 //            closeSocketService();
             e.printStackTrace();
-            refreshMsgList("service status : service exception ！"+e.getMessage());
+            refreshMsgList("service status : service exception ！" + e.getMessage());
         }
     }
 
     /**
      * 处理收到的信息
+     *
      * @param mSocket
      */
     private void acceptServiceSocketAction(Socket mSocket) {
@@ -567,12 +571,12 @@ public class MainActivity extends BaseActivity {
             String name = new File(fileBean.getFilePath()).getName();
             refreshMsgList("客户端传递的文件名称 : " + name);
             refreshMsgList("客户端传递的MD5 : " + fileBean.getMd5());
-            String fullPath =  Environment.getExternalStorageDirectory()  + File.separator + acceptFileSaveDir + File.separator + name;
+            String fullPath = Environment.getExternalStorageDirectory() + File.separator + acceptFileSaveDir + File.separator + name;
             mFile = new File(fullPath);
-            refreshMsgList("service status : check file save path .."+mFile.getPath());
+            refreshMsgList("service status : check file save path .." + mFile.getPath());
             boolean createFileResult = FileUtils.createFile(fullPath);
-            if(!createFileResult){
-                refreshMsgList(1,"service status : create files fail !");
+            if (!createFileResult) {
+                refreshMsgList(1, "service status : create files fail !");
                 return;
             }
             refreshMsgList("service status : create files success !");
@@ -607,7 +611,6 @@ public class MainActivity extends BaseActivity {
             } else {
 //                mHandler.sendEmptyMessage(70);
             }
-            mServerSocket.close();
             mInputStream.close();
             mObjectInputStream.close();
             mFileOutputStream.close();
@@ -620,8 +623,8 @@ public class MainActivity extends BaseActivity {
         }
     }
 
-    private void closeSocketService(){
-        if(mServerSocket != null){
+    private void closeSocketService() {
+        if (mServerSocket != null) {
             try {
                 mServerSocket.close();
             } catch (IOException e) {
@@ -802,7 +805,6 @@ public class MainActivity extends BaseActivity {
     private void toastMsg(String msg) {
         Toast.makeText(MainActivity.this, msg, Toast.LENGTH_LONG).show();
     }
-
 
 
 }
