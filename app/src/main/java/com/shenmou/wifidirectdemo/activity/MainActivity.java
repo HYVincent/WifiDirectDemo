@@ -38,11 +38,14 @@ import com.common.util.file.FileSizeUtil;
 import com.common.util.util.ThreadPoolManager;
 import com.common.view.util.DateUtil;
 import com.shenmou.wifidirectdemo.R;
+import com.shenmou.wifidirectdemo.adapter.ImgAdapter;
 import com.shenmou.wifidirectdemo.adapter.MsgAdapter;
 import com.shenmou.wifidirectdemo.adapter.WifiDrectAdapter;
 import com.shenmou.wifidirectdemo.base.BaseActivity;
 import com.shenmou.wifidirectdemo.bean.DataBean;
+import com.shenmou.wifidirectdemo.bean.ImgBean;
 import com.shenmou.wifidirectdemo.bean.MsgBean;
+import com.shenmou.wifidirectdemo.dialog.ShowImgDialog;
 import com.shenmou.wifidirectdemo.utils.FileUtils;
 import com.shenmou.wifidirectdemo.utils.GifSizeFilter;
 import com.shenmou.wifidirectdemo.utils.Glide4Engine;
@@ -109,8 +112,10 @@ public class MainActivity extends BaseActivity {
     //服务器的ip地址，作为客户端时使用
     private String ipString;
     private Button btnService;
-    private ImageView imageView;
-
+    //服务器收到的，或者是客户端发送成功或者失败的图片
+    private RecyclerView imgRecycleView;
+    private ImgAdapter imgAdapter;
+    private List<ImgBean> imgBeans = new ArrayList<>();
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -121,10 +126,30 @@ public class MainActivity extends BaseActivity {
         initRecycleView();
         initWifiP2p(mContext);
         registerBroadrost();
+        initImgRecycleView();
+    }
+
+    private void initImgRecycleView() {
+        imgRecycleView = findViewById(R.id.action_img);
+        LinearLayoutManager linearLayoutManager = new LinearLayoutManager(MainActivity.this);
+        linearLayoutManager.setOrientation(LinearLayoutManager.HORIZONTAL);
+        imgRecycleView.setLayoutManager(linearLayoutManager);
+        imgAdapter = new ImgAdapter(MainActivity.this);
+        imgAdapter.setData(imgBeans);
+        imgRecycleView.setAdapter(adapter);
+    }
+
+    private void refreshImgList(DataBean dataBean){
+        ImgBean newImgBean = new ImgBean();
+        newImgBean.setFileLength(dataBean.getFileLength());
+        newImgBean.setImgPath(dataBean.getFilePath());
+        newImgBean.setMd5(dataBean.getMd5());
+        newImgBean.setTime(dataBean.getTime());
+        imgBeans.add(newImgBean);
+        runOnUiThread(() -> imgAdapter.setData(imgBeans));
     }
 
     private void initView() {
-        imageView = findViewById(R.id.imageview);
         Button btnScan = findViewById(R.id.btn_start_scan_device);
         btnScan.setOnClickListener(view -> {
             if (isScan) {
@@ -145,11 +170,11 @@ public class MainActivity extends BaseActivity {
             DataBean dataBean = new DataBean();
             dataBean.setData(msg);
             dataBean.setMsgType(2);
+            dataBean.setTime(System.currentTimeMillis());
             ThreadPoolManager.getInstance(true).execute(new Runnable() {
                 @Override
                 public void run() {
-//                     connectServiceSocket(dataBean, ipString, SERVICE_PORT);
-                    sendMsgToService(dataBean);
+                    connectServiceSocket(dataBean, ipString, SERVICE_PORT);
                 }
             });
         });
@@ -510,9 +535,10 @@ public class MainActivity extends BaseActivity {
                                 ThreadPoolManager.getInstance(true).execute(() -> {
                                     refreshMsgList("正在连接服务器(" + ipString + ")..");
                                     DataBean dataBean = new DataBean();
+                                    dataBean.setTime(System.currentTimeMillis());
                                     dataBean.setData("测试消息，可以让服务器把在线的客户端都保存起来..");
-                                    connectServiceSocket(ipString, SERVICE_PORT);
-                                    sendHeartMsg();
+                                    connectServiceSocket(dataBean,ipString, SERVICE_PORT);
+//                                    sendHeartMsg();
                                 });
                             }
                         }
@@ -556,10 +582,9 @@ public class MainActivity extends BaseActivity {
     private void createSocketService(int serverPort) {
         try {
             mServerSocket = new ServerSocket(serverPort);
-//            mServerSocket.setReuseAddress(true);
-//            mServerSocket.bind(new InetSocketAddress(serverPort));
             while (serviceRun) {
                 mSocket = mServerSocket.accept();
+                refreshMsgList("new client connect successfully(" + mSocket.getRemoteSocketAddress() + ")!");
                 ThreadPoolManager.getInstance(true).execute(() -> acceptServiceSocketAction(mSocket));
             }
         } catch (IOException e) {
@@ -576,66 +601,59 @@ public class MainActivity extends BaseActivity {
      */
     private void acceptServiceSocketAction(Socket mSocket) {
         try {
-            refreshMsgList("new client connect successfully(" + mSocket.getRemoteSocketAddress() + ")!");
+            refreshMsgList("service status : accept new data !");
             mInputStream = mSocket.getInputStream();
             mObjectInputStream = new ObjectInputStream(mInputStream);
-            DataBean fileBean = (DataBean) mObjectInputStream.readObject();
-            if (TextUtils.isEmpty(fileBean.getFilePath())) {
-                refreshMsgList("service status : accept msg ->" + fileBean.getData());
-                return;
-            }
-            String name = new File(fileBean.getFilePath()).getName();
-            refreshMsgList("客户端传递的文件名称 : " + name);
-            refreshMsgList("客户端传递的MD5 : " + fileBean.getMd5());
-            String fullPath = Environment.getExternalStorageDirectory() + File.separator + acceptFileSaveDir + File.separator + name;
-            mFile = new File(fullPath);
-            refreshMsgList("service status : check file save path .." + mFile.getPath());
-            boolean createFileResult = FileUtils.createFile(fullPath);
-            if (!createFileResult) {
-                refreshMsgList(1, "service status : create files fail !");
-                return;
-            }
-            refreshMsgList("service status : create files success !");
-            mFileOutputStream = new FileOutputStream(mFile);
-            refreshMsgList("service status : start accept file ..");
-            //开始接收文件
-//            mHandler.sendEmptyMessage(40);
-            byte bytes[] = new byte[1024];
-            int len;
-            long total = 0;
-            int progress;
-            while ((len = mInputStream.read(bytes)) != -1) {
-                mFileOutputStream.write(bytes, 0, len);
-                total += len;
-                progress = (int) ((total * 100) / fileBean.getFileLength());
-                refreshMsgList("service status : accept file progress-->" + progress);
-                Message message = Message.obtain();
-                message.what = 50;
-                message.obj = progress;
-//                mHandler.sendMessage(message);
-            }
-            //新写入文件的MD5
-            String md5New = Md5Util.getMd5(mFile);
-            //发送过来的MD5
-            String md5Old = fileBean.getMd5();
-            if (md5New != null || md5Old != null) {
-                if (md5New.equals(md5Old)) {
-//                    mHandler.sendEmptyMessage(60);
-                    refreshMsgList("service status : 文件接收完成!");
-                    runOnUiThread(() -> imageView.setImageBitmap(BitmapFactory.decodeFile(fullPath)));
+            DataBean dataBean= (DataBean) mObjectInputStream.readObject();
+            refreshMsgList("service status : accept data -->"+dataBean.getData());
+            if(! TextUtils.isEmpty(dataBean.getFilePath())){
+                String name = new File(dataBean.getFilePath()).getName();
+                refreshMsgList("service status : file name->" + name+" md5("+dataBean.getMd5()+")"+" size("+dataBean.getFileLength()+")");
+                String fullPath = Environment.getExternalStorageDirectory() + File.separator + acceptFileSaveDir + File.separator + name;
+                mFile = new File(fullPath);
+                boolean createFileResult = FileUtils.createFile(fullPath);
+                if (!createFileResult) {
+                    refreshMsgList(1, "service status : create files fail !");
+                    return;
                 }
-            } else {
-//                mHandler.sendEmptyMessage(70);
+                mFileOutputStream = new FileOutputStream(mFile);
+                //开始接收文件
+                refreshMsgList("service status : start accept file !");
+                byte bytes[] = new byte[1024];
+                int len;
+                long total = 0;
+                int progress;
+                while ((len = mInputStream.read(bytes)) != -1) {
+                    mFileOutputStream.write(bytes, 0, len);
+                    total += len;
+                    progress = (int) ((total * 100) / dataBean.getFileLength());
+                    refreshMsgList("service status : file accept progress-->"+progress);
+                }
+                //新写入文件的MD5
+                String md5New = Md5Util.getMd5(mFile);
+                //发送过来的MD5
+                String md5Old = dataBean.getMd5();
+                if (md5New != null || md5Old != null) {
+                    if (md5New.equals(md5Old)) {
+                        refreshMsgList("service status : file accept successfully!");
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                new ShowImgDialog(MainActivity.this,fullPath).show();
+                                refreshImgList(dataBean);
+                            }
+                        });
+                    }
+                } else {
+                    refreshMsgList("service status : file accept fail !");
+                }
+                mFileOutputStream.close();
             }
-//            mInputStream.close();
-//            mObjectInputStream.close();
-//            mFileOutputStream.close();
+            mInputStream.close();
+            mObjectInputStream.close();
         } catch (Exception e) {
-//            mHandler.sendEmptyMessage(70);
-//            closeSocketService();
             e.printStackTrace();
-            Log.e(TAG, "文件接收异常");
-            refreshMsgList("service status : accept data exception !");
+            refreshMsgList("service status : file accept exception !");
         }
     }
 
@@ -683,60 +701,45 @@ public class MainActivity extends BaseActivity {
         }
     }
 
-    private void sendMsgToService(DataBean dataBean) {
-        try {
-            objectOutputStream.writeObject(dataBean);
-            if (TextUtils.isEmpty(dataBean.getFilePath())) {
-                objectOutputStream.close();
-                return;
-            }
-            File file = new File(dataBean.getFilePath());
-            refreshMsgList("client status : start client to send file task ..");
-            FileInputStream inputStream = new FileInputStream(file);
-            long size = FileSizeUtil.getFileSize(file);
-            long total = 0;
-            byte bytes[] = new byte[1024];
-            int len;
-            while ((len = inputStream.read(bytes)) != -1) {
-                outputStream.write(bytes, 0, len);
-                total += len;
-                int progress = (int) ((total * 100) / size);
-                refreshMsgList("client status : send file progress -->" + progress);
-                Log.e(TAG, "文件发送进度：" + progress);
-                Message message = Message.obtain();
-                message.what = 10;
-                message.obj = progress;
-//                mHandler.sendMessage(message);
-            }
-//            outputStream.close();
-//            objectOutputStream.close();
-//            inputStream.close();
-//            socket.close();
-            refreshMsgList("client status : send file successfully !");
-//            mHandler.sendEmptyMessage(20);
-            Log.e(TAG, "文件发送成功");
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-
     /**
      * 向服务器发送数据
      *
+     * @param dataBean
      * @param ipString   IP地址
      * @param serverPort 服务器端口
      */
-    private void connectServiceSocket(String ipString, int serverPort) {
+    private void connectServiceSocket(DataBean dataBean, String ipString, int serverPort) {
         try {
-            refreshMsgList("client status : start client to send task ..");
-            while (true) {
-                if (clientSocket == null) {
-                    clientSocket = new Socket(ipString, serverPort);
-                    outputStream = clientSocket.getOutputStream();
-                    objectOutputStream = new ObjectOutputStream(outputStream);
+            refreshMsgList("client status : start client to send data ..");
+            Socket socket = new Socket();
+            InetSocketAddress inetSocketAddress = new InetSocketAddress(ipString, serverPort);
+            socket.connect(inetSocketAddress);
+            OutputStream outputStream = socket.getOutputStream();
+            ObjectOutputStream objectOutputStream = new ObjectOutputStream(outputStream);
+            objectOutputStream.writeObject(dataBean);
+            if(!TextUtils.isEmpty(dataBean.getFilePath())){
+                refreshMsgList("client status : find img ,send img ...");
+                mFile = new File(dataBean.getFilePath());
+                FileInputStream inputStream = new FileInputStream(mFile);
+                long size = dataBean.getFileLength();
+                long total = 0;
+                byte bytes[] = new byte[1024];
+                int len;
+                while ((len = inputStream.read(bytes)) != -1) {
+                    outputStream.write(bytes, 0, len);
+                    total += len;
+                    int progress = (int) ((total * 100) / size);
+                    refreshMsgList("client status : send file progress-->"+progress);
                 }
+                dataBean.setTime(System.currentTimeMillis());
+                refreshImgList(dataBean);
+                inputStream.close();
+                refreshMsgList("client status : send file successfully !");
             }
+            refreshMsgList("client status : data send finish !");
+            outputStream.close();
+            objectOutputStream.close();
+            socket.close();
         } catch (Exception e) {
 //            mHandler.sendEmptyMessage(30);
             e.printStackTrace();
@@ -757,9 +760,11 @@ public class MainActivity extends BaseActivity {
                 DataBean dataBean = new DataBean();
                 dataBean.setMd5(Md5Util.getMd5(new File(imgPath)));
                 dataBean.setFilePath(imgPath);
+                dataBean.setTime(System.currentTimeMillis());
                 dataBean.setFileLength(FileSizeUtil.getFileSize(new File(imgPath)));
                 dataBean.setMsgType(3);
-                sendDataToAllClient(dataBean);
+//                sendDataToAllClient(dataBean);
+                connectServiceSocket(dataBean,ipString,SERVICE_PORT);
             });
         }
     }
