@@ -136,7 +136,7 @@ public class MainActivity extends BaseActivity {
         imgRecycleView.setLayoutManager(linearLayoutManager);
         imgAdapter = new ImgAdapter(MainActivity.this);
         imgAdapter.setData(imgBeans);
-        imgRecycleView.setAdapter(adapter);
+        imgRecycleView.setAdapter(imgAdapter);
     }
 
     private void refreshImgList(DataBean dataBean){
